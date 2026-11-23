@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Password Manager for Test</title>
+  </head>
+  <body>
+    <form id="signup" method="post">
+      <h1>Sign up</h1>
+      <p><label>Username <input name="username" autocomplete="username" required></label></p>
+      <p><label>Password <input name="password" type="password" autocomplete="new-password" required></label></p>
+      <button type="submit">Sign up</button>
+    </form>
+    <form id="login" method="post">
+      <h1>Sign in</h1>
+      <p><label>Username <input name="username" autocomplete="username" required></label></p>
+      <p><label>Password <input name="password" type="password" autocomplete="current-password" required></label></p>
+      <button type="submit">Sign in</button>
+    </form>
+    <form id="passkey" method="post">
+      <h1>Passkey test</h1>
+      <p>After registering, use the sign-in button or select the username field to open Conditional UI.</p>
+      <p><label>Username <input name="username" autocomplete="username webauthn" value="passkey-test" required></label></p>
+      <button id="passkey-register" type="button">Register a passkey</button>
+      <button id="passkey-login" type="submit">Sign in with a passkey</button>
+      <p id="passkey-result" role="status"></p>
+    </form>
+    <h1>TOTP setup test</h1>
+    <p>Scan this QR code for the <code>totp-test</code> account. Codes change every 10 seconds.</p>
+    <img src="totp-qr.png" width="280" height="280" alt="TOTP setup QR code for totp-test">
+    <form id="totp" method="post">
+      <label>Verification code <input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" required></label>
+      <button type="submit">Verify</button>
+    </form>
+    <p id="result" role="status"></p>
+    <script>
+      // This public fixture seed is encoded as Base32 in the QR image.
+      const seed = new TextEncoder().encode("12345678901234567890");
+      const key = crypto.subtle.importKey("raw", seed, {name: "HMAC", hash: "SHA-1"}, false, ["sign"]);
+      const totpForm = document.querySelector("#totp");
+      const result = document.querySelector("#result");
+
+      document.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (event.target !== totpForm) return;
+
+        const code = totpForm.elements.code.value;
+        const counter = new DataView(new ArrayBuffer(8));
+        counter.setBigUint64(0, BigInt(Math.floor(Date.now() / 10_000)));
+        const hash = new DataView(await crypto.subtle.sign("HMAC", await key, counter));
+        const offset = hash.getUint8(hash.byteLength - 1) & 15;
+        const expected = String((hash.getUint32(offset) & 0x7fffffff) % 1000000).padStart(6, "0");
+        result.textContent = code === expected ? "The code matches." : "The code did not match. Enter the current code.";
+      });
+    </script>
+    <script type="module" src="passkey.js"></script>
+  </body>
+</html>

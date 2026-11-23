@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light dark;
+  font: 14px/1.45 system-ui, sans-serif;
+  --border: color-mix(in srgb, CanvasText 24%, Canvas);
+  --accent: #2458bf;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { min-width: 360px; margin: 0; background: Canvas; color: CanvasText; }
+main { width: min(100vw, 410px); padding: 16px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+h1 { font-size: 20px; margin: 0; line-height: 1.25; }
+form, #accounts-panel, #accounts { display: grid; gap: 8px; }
+label { font-weight: 600; }
+input, textarea, select, button {
+  display: block;
+  min-width: 0;
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+input, textarea, select { width: 100%; background: Field; color: FieldText; }
+textarea { resize: vertical; font-family: ui-monospace, monospace; }
+button { color: white; background: var(--accent); cursor: pointer; }
+button.secondary { background: ButtonFace; color: ButtonText; }
+button:disabled { cursor: default; opacity: .65; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+details { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 10px; }
+details[open] > summary { margin-bottom: 10px; }
+summary { font-weight: 600; cursor: pointer; }
+.hint, .subtitle { color: GrayText; margin: 0; font-size: 13px; }
+#status { margin: 10px 0; }
+#status:empty { margin: 6px 0; }
+article { border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+article h2 { font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.actions button, .totp button { padding: 4px 8px; }
+.totp { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 6px; }
+.totp code { font-size: 18px; font-variant-numeric: tabular-nums; }
+code { overflow-wrap: anywhere; }
+.prompt main { width: 100%; max-width: 460px; }
+.prompt form { margin-top: 12px; }

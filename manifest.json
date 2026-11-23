@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Password Manager for Test",
+  "description": "Test accounts only. Passwords and TOTP secrets are stored in plaintext. Passkeys use a publicly known fixed private key.",
+  "version": "0.4.0",
+  "minimum_chrome_version": "140",
+  "permissions": ["storage", "scripting"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

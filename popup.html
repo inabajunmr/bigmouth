@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Password Manager for Test</title>
+    <link rel="stylesheet" href="popup.css">
+    <script src="popup.js" type="module"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Test vault</h1>
+      </header>
+      <p class="hint"><strong>Never use with real accounts.</strong> Passwords and TOTP secrets are stored in plaintext. All passkeys share a publicly known, hardcoded private key.</p>
+      <p id="status" role="status"></p>
+      <section id="accounts-panel" aria-label="Accounts">
+        <input id="filter" type="search" aria-label="Search accounts" placeholder="Search by origin or username">
+        <div id="accounts"></div>
+        <details>
+          <summary>Add or edit an account</summary>
+          <form id="account-form">
+            <label for="origin">Origin</label>
+            <input id="origin" name="origin" type="url" required placeholder="http://127.0.0.1:8000" autocapitalize="none" spellcheck="false">
+            <label for="username">Username</label>
+            <input id="username" name="username" required autocomplete="off">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <label for="totp">TOTP URI or secret</label>
+            <input id="totp" name="totp" type="password" autocomplete="off" spellcheck="false">
+            <button type="submit">Save account</button>
+          </form>
+        </details>
+      </section>
+      <details id="sites">
+        <summary>Allowed sites</summary>
+        <form id="site-form">
+          <label for="origins">Allowed origins</label>
+          <textarea id="origins" rows="3" spellcheck="false" placeholder="https://example.test&#10;http://127.0.0.1:8000/"></textarea>
+          <p class="hint">Enter one origin per line. Use <code>https://*.example.test</code> for subdomains.</p>
+          <button type="submit">Save allowed sites</button>
+          <p id="site-status" class="hint" role="status"></p>
+        </form>
+      </details>
+    </main>
+  </body>
+</html>
