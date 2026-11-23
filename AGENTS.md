@@ -1,6 +1,6 @@
 # Repository notes
 
-- This is a dependency-free Chrome Manifest V3 extension for fictional test data. Use browser APIs and keep credentials in plaintext under the `testVaultByOrigin` key in `chrome.storage.local`.
+- bigmouth is a dependency-free Chrome Manifest V3 extension for fictional test data. Use browser APIs and keep credentials in plaintext under the `testVaultByOrigin` key in `chrome.storage.local`.
 - Write UI text, errors, and documentation in English. `TODO.md` is the Japanese planning document.
 
 ## Behavior to preserve

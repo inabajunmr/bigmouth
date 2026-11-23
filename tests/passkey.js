@@ -49,7 +49,7 @@ async function registerPasskey() {
   const challenge = crypto.getRandomValues(new Uint8Array(32));
   const credential = await navigator.credentials.create({publicKey: {
     challenge,
-    rp: {id: rpId, name: "Password Manager for Test"},
+    rp: {id: rpId, name: "bigmouth"},
     user: {id: await crypto.subtle.digest("SHA-256", encoder.encode(name)), name, displayName: name},
     pubKeyCredParams: [{type: "public-key", alg: -7}],
     authenticatorSelection: {residentKey: "required", userVerification: "preferred"},

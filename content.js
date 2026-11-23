@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const channel = "password-manager-for-test/webauthn";
+  const channel = "bigmouth/webauthn";
   const generated = new WeakMap();
   const submitted = new WeakMap();
   const pendingPasskeys = new Map();
@@ -40,7 +40,7 @@
     root.adoptedStyleSheets = [popupStyle];
     const section = root.appendChild(document.createElement("section"));
     section.lang = "en";
-    section.setAttribute("aria-label", "Password Manager for Test");
+    section.setAttribute("aria-label", "bigmouth");
     (document.body ?? document.documentElement).append(host);
     return {host, section};
   }
@@ -216,7 +216,7 @@
 
     suggestion = makePopup();
     updateNoticeVisibility();
-    suggestion.section.appendChild(document.createElement("strong")).textContent = "Password Manager for Test";
+    suggestion.section.appendChild(document.createElement("strong")).textContent = "bigmouth";
     if (note) suggestion.section.appendChild(document.createElement("p")).textContent = note;
     for (const [label, action] of actions) {
       addButton(suggestion, label, () => {
