@@ -9,6 +9,7 @@ const origins = document.querySelector("#origins");
 const accountForm = document.querySelector("#account-form");
 const passwordField = accountForm.elements.password;
 const totpField = accountForm.elements.totp;
+const noteField = accountForm.elements.note;
 const filter = document.querySelector("#filter");
 const list = document.querySelector("#accounts");
 const initialOrigin = chrome.tabs.query({active: true, currentWindow: true}).then(([tab]) => {
@@ -22,6 +23,7 @@ let dashboardVersion = 0;
 let editVersion = 0;
 let displayedPassword = "";
 let displayedTotp = "";
+let displayedNote = "";
 
 async function request(action, detail = {}) {
   const response = await chrome.runtime.sendMessage({action, ...detail});
@@ -119,6 +121,8 @@ function renderAccounts() {
       passwordField.value = displayedPassword;
       displayedTotp = account.totp ? formatTotp(account.totp) : "";
       totpField.value = displayedTotp;
+      noteField.value = account.note ?? "";
+      displayedNote = noteField.value;
       passwordField.focus();
     });
     actionButton(actions, "Delete", async () => {
@@ -199,10 +203,12 @@ accountForm.addEventListener("submit", (event) => {
     const fields = Object.fromEntries(new FormData(accountForm));
     if (fields.password === displayedPassword) delete fields.password;
     if (fields.totp === displayedTotp) delete fields.totp;
+    if (fields.note === displayedNote) delete fields.note;
     await request("save-account", fields);
     if (version === editVersion) {
       displayedPassword = "";
       displayedTotp = "";
+      displayedNote = "";
       accountForm.reset();
       passwordField.type = "password";
     }

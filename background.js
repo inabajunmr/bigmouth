@@ -17,6 +17,7 @@ async function dashboard() {
       username: account.username,
       hasPassword: Boolean(account.password),
       totp: account.totp,
+      note: account.note,
       passkeys: signablePasskeys(account).map(({id}) => id),
     })),
   };
@@ -109,6 +110,10 @@ async function saveAccount(message) {
     const account = accountFor(data, origin, username);
     if (message.password) account.password = message.password;
     if (totp) account.totp = totp;
+    if (typeof message.note === "string") {
+      if (message.note.trim()) account.note = message.note;
+      else delete account.note;
+    }
   });
 }
 
