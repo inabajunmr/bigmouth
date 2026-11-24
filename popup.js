@@ -11,6 +11,11 @@ const passwordField = accountForm.elements.password;
 const totpField = accountForm.elements.totp;
 const filter = document.querySelector("#filter");
 const list = document.querySelector("#accounts");
+const initialOrigin = chrome.tabs.query({active: true, currentWindow: true}).then(([tab]) => {
+  if (!tab?.url) return "";
+  const {origin, protocol} = new URL(tab.url);
+  return protocol === "http:" || protocol === "https:" ? origin : "";
+}).catch(() => "");
 const totpRows = [];
 let dashboard;
 let dashboardVersion = 0;
@@ -71,10 +76,11 @@ function updateTotp() {
 
 function renderAccounts() {
   const query = filter.value.toLowerCase().trim();
+  const exactOrigin = query === filter.defaultValue ? query : "";
   list.replaceChildren();
   totpRows.length = 0;
   for (const account of dashboard.accounts.filter(({origin, username}) =>
-    (origin + " " + username).toLowerCase().includes(query))) {
+    exactOrigin ? origin === exactOrigin : (origin + " " + username).toLowerCase().includes(query))) {
     const card = list.appendChild(document.createElement("article"));
     card.appendChild(document.createElement("h2")).textContent = account.username;
     const meta = card.appendChild(document.createElement("p"));
@@ -140,9 +146,10 @@ function renderAccounts() {
 
 async function refresh() {
   const version = ++dashboardVersion;
-  const current = await request("dashboard");
+  const [current, origin] = await Promise.all([request("dashboard"), initialOrigin]);
   if (version !== dashboardVersion) return;
   const firstLoad = !dashboard;
+  if (firstLoad) filter.defaultValue = origin;
   dashboard = current;
   renderAccounts();
   if (firstLoad) {
@@ -203,7 +210,9 @@ accountForm.addEventListener("submit", (event) => {
   }, event.submitter);
 });
 
-filter.addEventListener("input", renderAccounts);
+filter.addEventListener("input", () => {
+  if (dashboard) renderAccounts();
+});
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes[vaultStorageKey]) void refresh().catch((error) => { status.textContent = error.message; });
 });

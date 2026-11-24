@@ -106,7 +106,8 @@ function credentialResponse(id, response, clientExtensionResults = {}) {
 }
 
 export function signablePasskeys({passkeys}) {
-  return passkeys.filter(({keyId}) => keyId === testKey.kid);
+  return passkeys.filter((passkey) => typeof passkey?.id === "string" &&
+    passkey.id.length > 0 && passkey.keyId === testKey.kid);
 }
 
 export function registrationRecord(options) {

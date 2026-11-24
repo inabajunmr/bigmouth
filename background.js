@@ -1,12 +1,11 @@
 import {signablePasskeys} from "./authenticator.js";
 import {normalizeOrigin, normalizeOrigins} from "./origins.js";
 import {approvePasskey, cancelPasskey, cancelPasskeysForTab, hasMatchingPasskey, requestPasskey} from "./passkeys.js";
-import {configuredOrigins, requireSite, siteFor, updateScripts} from "./sites.js";
+import {configuredOrigins, siteFor, updateScripts} from "./sites.js";
 import {currentTotp, parseTotp} from "./totp.js";
 import {accountFor, accountsForOrigin, changeVault, readVault, requireAccount, usernameValue} from "./vault.js";
 
 const extensionUrl = chrome.runtime.getURL("");
-const passwordPrompts = new Map();
 const storageReady = chrome.storage.local.setAccessLevel({accessLevel: "TRUSTED_CONTEXTS"});
 
 async function dashboard() {
@@ -23,75 +22,29 @@ async function dashboard() {
   };
 }
 
-function canceled() {
-  return new DOMException("The operation was canceled.", "NotAllowedError");
-}
-
-function finishPasswordPrompt(id, username, error) {
-  const prompt = passwordPrompts.get(id);
-  if (!prompt) return;
-  passwordPrompts.delete(id);
-  clearTimeout(prompt.timer);
-  if (prompt.windowId != null) void chrome.windows.remove(prompt.windowId).catch(() => {});
-  if (error) prompt.reject(error);
-  else prompt.resolve(username);
-}
-
-function cancelPasswordPrompt(id) {
-  finishPasswordPrompt(id, null, canceled());
-}
-
-function askPassword(site, username) {
-  const id = crypto.randomUUID();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => cancelPasswordPrompt(id), 90_000);
-    const prompt = {site, username, resolve, reject, timer};
-    passwordPrompts.set(id, prompt);
-    chrome.windows.create({
-      url: chrome.runtime.getURL("prompt.html") + "#" + id,
-      type: "popup",
-      width: 430,
-      height: 440,
-      focused: true,
-    }).then(({id: windowId}) => {
-      if (passwordPrompts.has(id)) {
-        prompt.windowId = windowId;
-      } else {
-        void chrome.windows.remove(windowId).catch(() => {});
-      }
-    }, (error) => finishPasswordPrompt(id, null, error));
-  });
-}
-
-chrome.windows.onRemoved.addListener((windowId) => {
-  for (const [id, prompt] of passwordPrompts) {
-    if (prompt.windowId === windowId) cancelPasswordPrompt(id);
-  }
-});
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-  cancelPasskeysForTab(tabId);
-  for (const [id, prompt] of passwordPrompts) {
-    if (prompt.site.tabId === tabId) cancelPasswordPrompt(id);
-  }
-});
+chrome.tabs.onRemoved.addListener(cancelPasskeysForTab);
 
 chrome.tabs.onUpdated.addListener((tabId, {status}) => {
   if (status === "loading") cancelPasskeysForTab(tabId);
 });
 
-async function savePassword(site, message) {
-  let username = message.username?.trim() ? usernameValue(message.username) : "";
-  if (typeof message.password !== "string" || !message.password || message.password.length > 4096) {
+async function savePassword({origin}, {accountId, username, password, generated}) {
+  if (typeof password !== "string" || !password || password.length > 4096) {
     throw new Error("Enter a password to save.");
   }
-  const accounts = accountsForOrigin(await readVault(), site.origin);
-  const existing = accounts.find((account) => account.username === username && account.password);
-  if (existing?.password === message.password) return;
-  if (!username || !message.generated || existing) username = await askPassword(site, username);
-  await requireSite(site.origin);
-  await changeVault((data) => {
-    accountFor(data, site.origin, username).password = message.password;
+  return changeVault((data) => {
+    if (accountId) {
+      requireAccount(data, accountId, origin).password = password;
+      return true;
+    }
+    const name = usernameValue(username);
+    const existing = accountsForOrigin(data, origin).find((account) => account.username === name);
+    if (existing && generated !== true) {
+      throw new Error("An account with this username already exists. Select it to save the password.");
+    }
+    if (existing?.password && existing.password !== password) return false;
+    (existing ?? accountFor(data, origin, name)).password = password;
+    return true;
   });
 }
 
@@ -178,20 +131,6 @@ async function fromExtension(message) {
       });
     case "copy-password":
       return requireAccount(await readVault(), message.id).password;
-    case "prompt": {
-      const prompt = passwordPrompts.get(message.id);
-      if (!prompt) throw canceled();
-      return {origin: prompt.site.origin, username: prompt.username};
-    }
-    case "approve": {
-      const prompt = passwordPrompts.get(message.id);
-      if (!prompt) throw canceled();
-      return finishPasswordPrompt(message.id, prompt.username || usernameValue(message.username));
-    }
-    case "cancel":
-      return cancelPasswordPrompt(message.id);
-    case "keepalive":
-      return passwordPrompts.has(message.id);
     default:
       throw new Error("Unknown extension action.");
   }

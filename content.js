@@ -24,6 +24,7 @@
   let suggestion;
   let suggestionField;
   let notice;
+  let passwordPrompt;
   let passkeyPrompt;
   let scanning = false;
   let focusGeneration = 0;
@@ -69,7 +70,9 @@
   }
 
   function updateNoticeVisibility() {
-    if (notice) notice.host.style.display = passkeyPrompt || suggestion ? "none" : "";
+    if (passwordPrompt && !passwordPrompt.host.isConnected) passwordPrompt = null;
+    if (passwordPrompt) passwordPrompt.host.style.display = passkeyPrompt ? "none" : "";
+    if (notice) notice.host.style.display = passkeyPrompt || passwordPrompt || suggestion ? "none" : "";
   }
 
   function showNotice(message, actionLabel, action) {
@@ -157,7 +160,7 @@
 
   async function suggest(field) {
     removeSuggestion();
-    if (passkeyPrompt || !(field instanceof HTMLInputElement) || field.readOnly || field.disabled) return;
+    if (passkeyPrompt || passwordPrompt || !(field instanceof HTMLInputElement) || field.readOnly || field.disabled) return;
     const scope = fieldScope(field);
     const username = usernameField(scope);
     const usernameFocused = field === username || field.type === "email" || tokens(field).includes("email");
@@ -201,7 +204,7 @@
           showNotice("Enter a password to save.");
           return;
         }
-        return saveFormPassword(username?.value.trim() ?? "", passwordField.value);
+        showPasswordForm(username?.value.trim() ?? "", passwordField.value, accounts);
       }]);
     }
     if (otp) {
@@ -244,20 +247,22 @@
     if (event.key === "Escape") removeSuggestion();
   }, true);
 
-  async function saveFormPassword(username, password, generated = false) {
-    await send("site-save-password", {username, password, generated});
-    showNotice("Account saved.");
+  async function saveGeneratedPassword(username, password) {
+    if (username && await send("site-save-password", {username, password, generated: true})) {
+      showNotice("Password saved.");
+      return;
+    }
+    showPasswordForm(username, password, await send("site-accounts"));
   }
 
   function passwordSubmitted(scope) {
-    const field = newFields(scope)[0];
+    const password = newFields(scope)[0]?.value;
+    if (!password || generated.get(scope) !== password) return;
     const username = usernameField(scope)?.value.trim() ?? "";
-    if (!field?.value) return;
-    const password = field.value;
     const marker = submitted.get(scope);
     if (marker && marker.username === username && marker.password === password && Date.now() - marker.at < 1500) return;
     submitted.set(scope, {username, password, at: Date.now()});
-    void saveFormPassword(username, password, generated.get(scope) === password).catch((error) => {
+    void saveGeneratedPassword(username, password).catch((error) => {
       if (document.body) showNotice(error.message);
     });
   }
@@ -283,6 +288,17 @@
     return field;
   }
 
+  function usernameInput(form, username) {
+    const label = form.appendChild(document.createElement("label"));
+    label.textContent = "Username";
+    const field = label.appendChild(document.createElement("input"));
+    field.required = true;
+    field.autocomplete = "off";
+    field.maxLength = 512;
+    field.value = username;
+    return field;
+  }
+
   function addConfirmation(form, label, confirm, cancel) {
     const save = form.appendChild(document.createElement("button"));
     save.type = "submit";
@@ -305,6 +321,43 @@
     });
   }
 
+  function showPasswordForm(username, password, accounts) {
+    if (passwordPrompt?.host.isConnected) return;
+    const widget = makePopup();
+    passwordPrompt = widget;
+    removeSuggestion();
+    widget.section.appendChild(document.createElement("p")).textContent = location.origin;
+    const form = widget.section.appendChild(document.createElement("form"));
+    let destination;
+    if (accounts.length) {
+      const choices = accounts.map(({id, username: label}) => ({id, label}));
+      choices.push({id: "new", label: "New account"});
+      const preferred = accounts.find((account) => account.username === username)?.id;
+      destination = accountSelect(form, "Save to account", choices, preferred ?? (username ? "new" : ""));
+    }
+    const name = usernameInput(form, username);
+    function updateUsername() {
+      name.disabled = Boolean(destination && destination.value !== "new");
+      name.parentElement.hidden = name.disabled;
+    }
+    destination?.addEventListener("change", updateUsername);
+    updateUsername();
+
+    function close() {
+      if (passwordPrompt !== widget) return;
+      widget.host.remove();
+      passwordPrompt = null;
+      updateNoticeVisibility();
+    }
+    addConfirmation(form, "Save password", async () => {
+      const target = name.disabled ? {accountId: destination.value} : {username: name.value};
+      await send("site-save-password", {password, ...target});
+      close();
+      showNotice("Password saved.");
+    }, close);
+    (destination ?? name).focus();
+  }
+
   function showTotpForm(widget, value, {label, choices, preferred}, cancel) {
     widget.section.replaceChildren();
     widget.section.appendChild(document.createElement("p")).textContent = location.origin;
@@ -314,13 +367,7 @@
       if (label) form.appendChild(document.createElement("p")).textContent = "QR code for " + label;
       field = accountSelect(form, "Save to account", choices, preferred);
     } else {
-      const fieldLabel = form.appendChild(document.createElement("label"));
-      fieldLabel.textContent = "Username";
-      field = fieldLabel.appendChild(document.createElement("input"));
-      field.required = true;
-      field.autocomplete = "off";
-      field.maxLength = 512;
-      field.value = label;
+      field = usernameInput(form, label);
     }
     addConfirmation(form, "Save TOTP", async () => {
       const target = choices.length ? {accountId: field.value} : {username: field.value};

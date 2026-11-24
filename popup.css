@@ -43,5 +43,3 @@ article h2 { font-size: 15px; margin: 0; overflow-wrap: anywhere; }
 .totp { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-top: 6px; }
 .totp code { font-size: 18px; font-variant-numeric: tabular-nums; }
 code { overflow-wrap: anywhere; }
-.prompt main { width: 100%; max-width: 460px; }
-.prompt form { margin-top: 12px; }
