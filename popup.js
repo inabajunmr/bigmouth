@@ -7,6 +7,7 @@ const sites = document.querySelector("#sites");
 const siteStatus = document.querySelector("#site-status");
 const origins = document.querySelector("#origins");
 const accountForm = document.querySelector("#account-form");
+const originField = accountForm.elements.origin;
 const passwordField = accountForm.elements.password;
 const totpField = accountForm.elements.totp;
 const noteField = accountForm.elements.note;
@@ -114,7 +115,7 @@ function renderAccounts() {
       if (version !== editVersion) return;
       accountForm.reset();
       accountForm.parentElement.open = true;
-      accountForm.elements.origin.value = account.origin;
+      originField.value = account.origin;
       accountForm.elements.username.value = account.username;
       passwordField.type = "text";
       displayedPassword = password ?? "";
@@ -194,6 +195,10 @@ document.querySelector("#site-form").addEventListener("submit", (event) => {
       ? "Allowed sites saved. Reload any open pages to apply the changes."
       : "Allowed sites saved. Grant site access in Chrome to enable them.";
   }, event.submitter, siteStatus);
+});
+
+void initialOrigin.then((origin) => {
+  originField.defaultValue = origin;
 });
 
 accountForm.addEventListener("submit", (event) => {
