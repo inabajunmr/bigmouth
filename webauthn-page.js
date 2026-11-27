@@ -3,7 +3,7 @@
   const container = navigator.credentials;
   if (!container || !window.isSecureContext) return;
 
-  const channel = "bigmouth/webauthn";
+  const channel = "kasswordmanager/webauthn";
   const origin = location.origin;
   const pending = new Map();
 

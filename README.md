@@ -1,4 +1,4 @@
-# bigmouth
+# KasswordManager
 
 A Chrome extension for managing test accounts with non-sensitive credentials. **Never use it with real accounts.** Passwords and TOTP secrets are stored in plaintext. All passkeys share a publicly known, hardcoded private key.
 

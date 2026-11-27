@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const channel = "bigmouth/webauthn";
+  const channel = "kasswordmanager/webauthn";
   const generated = new WeakMap();
   const submitted = new WeakMap();
   const pendingPasskeys = new Map();
@@ -41,7 +41,7 @@
     root.adoptedStyleSheets = [popupStyle];
     const section = root.appendChild(document.createElement("section"));
     section.lang = "en";
-    section.setAttribute("aria-label", "bigmouth");
+    section.setAttribute("aria-label", "KasswordManager");
     (document.body ?? document.documentElement).append(host);
     return {host, section};
   }
@@ -219,7 +219,7 @@
 
     suggestion = makePopup();
     updateNoticeVisibility();
-    suggestion.section.appendChild(document.createElement("strong")).textContent = "bigmouth";
+    suggestion.section.appendChild(document.createElement("strong")).textContent = "KasswordManager";
     if (note) suggestion.section.appendChild(document.createElement("p")).textContent = note;
     for (const [label, action] of actions) {
       addButton(suggestion, label, () => {
