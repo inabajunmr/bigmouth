@@ -41,7 +41,7 @@ function ask(request, view, deadline) {
   });
 }
 
-export function approvePasskey(site, {bridgeId, choice, verified}) {
+export function approvePasskey(site, {bridgeId, choice, verified, newAuthenticator}) {
   const request = activeRequests.get(requestKey(site, bridgeId));
   const view = request?.approval?.view;
   if (!view) throw canceled();
@@ -49,6 +49,7 @@ export function approvePasskey(site, {bridgeId, choice, verified}) {
   finishApproval(request, {
     choice,
     verified: view.verification === "required" || (view.verification === "preferred" && verified === true),
+    newAuthenticator: view.allowNewAuthenticator === true && newAuthenticator === true,
   });
 }
 
@@ -99,8 +100,9 @@ export async function hasMatchingPasskey(site, options) {
   return passkeyCandidates(accounts, platform).length > 0;
 }
 
-function checkExcludedCredentials(accounts, descriptors) {
-  if (accounts.some((account) => signablePasskeys(account).some(({id}) => includesCredential(descriptors, id)))) {
+function checkExcludedCredentials(account, record, descriptors) {
+  if (signablePasskeys(account).some(({id, rpId, authenticatorId}) =>
+    rpId === record.rpId && authenticatorId === record.authenticatorId && includesCredential(descriptors, id))) {
     throw new DOMException("This passkey is already registered.", "InvalidStateError");
   }
 }
@@ -109,11 +111,13 @@ async function authenticate(request, options, accounts, deadline) {
   const {site} = request;
   const candidates = passkeyCandidates(accounts, options);
   if (!candidates.length) return {fallback: true};
+  const byUsername = Map.groupBy(candidates, ({account}) => account.username);
   const {choice, verified} = await ask(request, {
     title: "Sign in with a passkey",
     choices: candidates.map(({passkey, account}) => ({
       id: passkey.id,
-      label: account.username,
+      label: byUsername.get(account.username).length > 1
+        ? account.username + " (" + passkey.id.slice(0, 8) + ")" : account.username,
     })),
     verification: options.userVerification ?? "preferred",
   }, deadline);
@@ -131,9 +135,8 @@ async function register(request, options, accounts, deadline) {
   const {site} = request;
   const username = usernameValue(options.user?.name);
   const record = registrationRecord(options);
-  checkExcludedCredentials(accounts, options.excludeCredentials);
   const choices = accountChoices(accounts);
-  const {choice, verified} = await ask(request, {
+  const {choice, verified, newAuthenticator} = await ask(request, {
     title: "Save passkey",
     detail: username,
     choices: [
@@ -142,15 +145,18 @@ async function register(request, options, accounts, deadline) {
     ],
     preferred: choices.find(({label}) => label === username)?.id ?? "new",
     verification: options.authenticatorSelection?.userVerification ?? "preferred",
+    allowNewAuthenticator: true,
   }, deadline);
+  // Records without an authenticator ID belong to the saved account's default authenticator.
+  if (newAuthenticator) record.authenticatorId = crypto.randomUUID();
   await requireSite(site.origin);
   const response = await createResponse(options, site.origin, record, verified);
   await changeVault((data) => {
     if (request.canceled) throw canceled();
-    checkExcludedCredentials(accountsForOrigin(data, site.origin), options.excludeCredentials);
     const account = choice === "new" ? accountFor(data, site.origin, username) : requireAccount(data, choice, site.origin);
-    account.passkeys = account.passkeys.filter(({rpId, userHandle}) =>
-      rpId !== record.rpId || userHandle !== record.userHandle);
+    checkExcludedCredentials(account, record, options.excludeCredentials);
+    account.passkeys = account.passkeys.filter(({rpId, userHandle, authenticatorId}) =>
+      rpId !== record.rpId || userHandle !== record.userHandle || authenticatorId !== record.authenticatorId);
     account.passkeys.push(record);
     markAccountUsed(data, account);
   });

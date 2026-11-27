@@ -299,6 +299,15 @@
     return field;
   }
 
+  function checkbox(form, text) {
+    const label = form.appendChild(document.createElement("label"));
+    label.className = "check";
+    const field = label.appendChild(document.createElement("input"));
+    field.type = "checkbox";
+    label.append(text);
+    return field;
+  }
+
   function addConfirmation(form, label, confirm, cancel) {
     const save = form.appendChild(document.createElement("button"));
     save.type = "submit";
@@ -475,16 +484,11 @@
     if (view.detail) widget.section.appendChild(document.createElement("p")).textContent = view.detail;
     const form = widget.section.appendChild(document.createElement("form"));
     const account = accountSelect(form, "Account", view.choices, view.preferred);
-    let verify;
-    if (view.verification === "preferred") {
-      const label = form.appendChild(document.createElement("label"));
-      label.className = "check";
-      verify = label.appendChild(document.createElement("input"));
-      verify.type = "checkbox";
-      label.append("Simulate successful user verification");
-    }
+    const newAuthenticator = view.allowNewAuthenticator ? checkbox(form, "Keep existing passkeys") : null;
+    const verify = view.verification === "preferred" ? checkbox(form, "Simulate successful user verification") : null;
     addConfirmation(form, "Continue", () => send("site-passkey-approve", {
       bridgeId, choice: account.value, verified: verify?.checked ?? false,
+      newAuthenticator: newAuthenticator?.checked ?? false,
     }), () => send("site-passkey-cancel", {bridgeId}));
     account.focus();
   }
