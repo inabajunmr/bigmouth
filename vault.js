@@ -38,6 +38,25 @@ export function accountsForOrigin({accounts}, origin) {
   return accounts.filter((account) => account.origin === origin);
 }
 
+export function accountChoices(accounts) {
+  return accounts.toSorted((a, b) => (b.lastUsed ?? 0) - (a.lastUsed ?? 0))
+    .map(({id, username}) => ({id, label: username}));
+}
+
+export function markAccountUsed(data, account) {
+  // Vault writes are serialized, so each use gets a distinct order.
+  const latest = data.accounts.reduce((order, {lastUsed}) => Math.max(order, lastUsed ?? 0), 0);
+  account.lastUsed = latest + 1;
+}
+
+export async function recordAccountUse(id, origin) {
+  try {
+    await changeVault((data) => markAccountUsed(data, requireAccount(data, id, origin)));
+  } catch (error) {
+    console.error("Could not record account use.", error);
+  }
+}
+
 export function accountFor(data, origin, username) {
   let account = data.accounts.find((item) => item.origin === origin && item.username === username);
   if (!account) {

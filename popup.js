@@ -98,6 +98,7 @@ function renderAccounts() {
       remaining.className = "hint";
       const copy = actionButton(row, "Copy TOTP", async () => {
         await navigator.clipboard.writeText(await currentTotp(account.totp));
+        await request("record-account-use", {id: account.id});
         status.textContent = "TOTP copied.";
       });
       copy.disabled = true;
@@ -107,6 +108,7 @@ function renderAccounts() {
     actions.className = "actions";
     if (account.hasPassword) actionButton(actions, "Copy password", async () => {
       await navigator.clipboard.writeText(await request("copy-password", {id: account.id}));
+      await request("record-account-use", {id: account.id});
       status.textContent = "Password copied.";
     });
     actionButton(actions, "Edit", async () => {

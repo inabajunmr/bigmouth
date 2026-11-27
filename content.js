@@ -82,7 +82,7 @@
     const text = notice.section.appendChild(document.createElement("p"));
     text.setAttribute("role", "status");
     text.textContent = message;
-    if (actionLabel) addButton(notice, actionLabel, action);
+    if (actionLabel) addButton(notice, actionLabel, () => action(text));
     addButton(notice, "Close", () => notice?.host.remove());
     return notice;
   }
@@ -204,7 +204,7 @@
           showNotice("Enter a password to save.");
           return;
         }
-        showPasswordForm(username?.value.trim() ?? "", passwordField.value, accounts);
+        return showPasswordForm(username?.value.trim() ?? "", passwordField.value);
       }]);
     }
     if (otp) {
@@ -252,7 +252,7 @@
       showNotice("Password saved.");
       return;
     }
-    showPasswordForm(username, password, await send("site-accounts"));
+    await showPasswordForm(username, password);
   }
 
   function passwordSubmitted(scope) {
@@ -321,7 +321,8 @@
     });
   }
 
-  function showPasswordForm(username, password, accounts) {
+  async function showPasswordForm(username, password) {
+    const choices = await send("site-password-targets");
     if (passwordPrompt?.host.isConnected) return;
     const widget = makePopup();
     passwordPrompt = widget;
@@ -329,10 +330,9 @@
     widget.section.appendChild(document.createElement("p")).textContent = location.origin;
     const form = widget.section.appendChild(document.createElement("form"));
     let destination;
-    if (accounts.length) {
-      const choices = accounts.map(({id, username: label}) => ({id, label}));
+    if (choices.length) {
+      const preferred = choices.find(({label}) => label === username)?.id;
       choices.push({id: "new", label: "New account"});
-      const preferred = accounts.find((account) => account.username === username)?.id;
       destination = accountSelect(form, "Save to account", choices, preferred ?? (username ? "new" : ""));
     }
     const name = usernameInput(form, username);
@@ -371,8 +371,19 @@
     }
     addConfirmation(form, "Save TOTP", async () => {
       const target = choices.length ? {accountId: field.value} : {username: field.value};
-      await send("site-save-totp", {value, ...target});
-      if (widget.host.isConnected) showNotice("TOTP saved.");
+      const accountId = await send("site-save-totp", {value, ...target});
+      if (!widget.host.isConnected) return;
+      showNotice("TOTP saved.", "Copy TOTP", async (status) => {
+        try {
+          const code = await send("site-totp-code", {value});
+          await navigator.clipboard.writeText(code);
+        } catch {
+          status.textContent = "TOTP saved. Could not copy the code.";
+          return;
+        }
+        await send("record-account-use", {id: accountId}).catch(() => {});
+        status.textContent = "TOTP saved. Code copied.";
+      });
     }, cancel);
     field.focus();
   }

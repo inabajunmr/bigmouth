@@ -3,7 +3,10 @@ import {normalizeOrigin, normalizeOrigins} from "./origins.js";
 import {approvePasskey, cancelPasskey, cancelPasskeysForTab, hasMatchingPasskey, requestPasskey} from "./passkeys.js";
 import {configuredOrigins, siteFor, updateScripts} from "./sites.js";
 import {currentTotp, parseTotp} from "./totp.js";
-import {accountFor, accountsForOrigin, changeVault, readVault, requireAccount, usernameValue} from "./vault.js";
+import {
+  accountChoices, accountFor, accountsForOrigin, changeVault, markAccountUsed,
+  readVault, recordAccountUse, requireAccount, usernameValue,
+} from "./vault.js";
 
 const extensionUrl = chrome.runtime.getURL("");
 const storageReady = chrome.storage.local.setAccessLevel({accessLevel: "TRUSTED_CONTEXTS"});
@@ -34,34 +37,38 @@ async function savePassword({origin}, {accountId, username, password, generated}
     throw new Error("Enter a password to save.");
   }
   return changeVault((data) => {
+    let account;
     if (accountId) {
-      requireAccount(data, accountId, origin).password = password;
-      return true;
+      account = requireAccount(data, accountId, origin);
+    } else {
+      const name = usernameValue(username);
+      const existing = accountsForOrigin(data, origin).find((account) => account.username === name);
+      if (existing && generated !== true) {
+        throw new Error("An account with this username already exists. Select it to save the password.");
+      }
+      if (existing?.password && existing.password !== password) return false;
+      account = existing ?? accountFor(data, origin, name);
     }
-    const name = usernameValue(username);
-    const existing = accountsForOrigin(data, origin).find((account) => account.username === name);
-    if (existing && generated !== true) {
-      throw new Error("An account with this username already exists. Select it to save the password.");
-    }
-    if (existing?.password && existing.password !== password) return false;
-    (existing ?? accountFor(data, origin, name)).password = password;
+    account.password = password;
+    markAccountUsed(data, account);
     return true;
   });
 }
 
 async function totpTargets(site, input) {
   const {label} = parseTotp(input);
-  const choices = accountsForOrigin(await readVault(), site.origin)
-    .map(({id, username}) => ({id, label: username}));
+  const choices = accountChoices(accountsForOrigin(await readVault(), site.origin));
   return {label, choices, preferred: choices.find((choice) => choice.label === label)?.id};
 }
 
 async function saveTotp(site, {value, accountId, username}) {
   const totp = parseTotp(value);
-  await changeVault((data) => {
+  return changeVault((data) => {
     const account = accountId ? requireAccount(data, accountId, site.origin)
       : accountFor(data, site.origin, usernameValue(username));
     account.totp = totp;
+    markAccountUsed(data, account);
+    return account.id;
   });
 }
 
@@ -76,19 +83,28 @@ async function fromSite(message, site) {
     case "site-password": {
       const {username, password} = requireAccount(await readVault(), message.id, site.origin);
       if (!password) throw new Error("This account has no saved password.");
+      await recordAccountUse(message.id, site.origin);
       return {username, password};
     }
+    case "site-password-targets":
+      return accountChoices(accountsForOrigin(await readVault(), site.origin));
     case "site-save-password":
       return savePassword(site, message);
     case "site-totp-targets":
       return totpTargets(site, message.value);
     case "site-save-totp":
       return saveTotp(site, message);
+    case "site-totp-code":
+      return currentTotp(parseTotp(message.value));
     case "site-totp": {
       const {totp} = requireAccount(await readVault(), message.id, site.origin);
       if (!totp) throw new Error("This account has no saved TOTP.");
-      return currentTotp(totp);
+      const code = await currentTotp(totp);
+      void recordAccountUse(message.id, site.origin);
+      return code;
     }
+    case "record-account-use":
+      return recordAccountUse(message.id, site.origin);
     case "site-conditional":
       return hasMatchingPasskey(site, message.options);
     case "site-passkey":
@@ -110,6 +126,7 @@ async function saveAccount(message) {
     const account = accountFor(data, origin, username);
     if (message.password) account.password = message.password;
     if (totp) account.totp = totp;
+    if (message.password || totp) markAccountUsed(data, account);
     if (typeof message.note === "string") {
       if (message.note.trim()) account.note = message.note;
       else delete account.note;
@@ -136,6 +153,8 @@ async function fromExtension(message) {
       });
     case "copy-password":
       return requireAccount(await readVault(), message.id).password;
+    case "record-account-use":
+      return recordAccountUse(message.id);
     default:
       throw new Error("Unknown extension action.");
   }

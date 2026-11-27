@@ -1,6 +1,9 @@
 import {createResponse, fromBase64Url, getResponse, registrationRecord, signablePasskeys} from "./authenticator.js";
 import {requireSite} from "./sites.js";
-import {accountFor, accountsForOrigin, changeVault, readVault, requireAccount, usernameValue} from "./vault.js";
+import {
+  accountChoices, accountFor, accountsForOrigin, changeVault, markAccountUsed,
+  readVault, recordAccountUse, requireAccount, usernameValue,
+} from "./vault.js";
 
 const activeRequests = new Map();
 
@@ -118,7 +121,10 @@ async function authenticate(request, options, accounts, deadline) {
   const currentAccounts = accountsForOrigin(await readVault(), site.origin);
   const current = passkeyCandidates(currentAccounts, options).find(({passkey}) => passkey.id === choice);
   if (request.canceled || !current) throw canceled();
-  return getResponse(options, site.origin, current.passkey, verified);
+  const response = await getResponse(options, site.origin, current.passkey, verified);
+  if (request.canceled) throw canceled();
+  await recordAccountUse(current.account.id, site.origin);
+  return response;
 }
 
 async function register(request, options, accounts, deadline) {
@@ -126,14 +132,15 @@ async function register(request, options, accounts, deadline) {
   const username = usernameValue(options.user?.name);
   const record = registrationRecord(options);
   checkExcludedCredentials(accounts, options.excludeCredentials);
+  const choices = accountChoices(accounts);
   const {choice, verified} = await ask(request, {
     title: "Save passkey",
     detail: username,
     choices: [
-      ...accounts.map(({id, username: name}) => ({id, label: name})),
+      ...choices,
       {id: "new", label: username + " (new account)"},
     ],
-    preferred: accounts.find((account) => account.username === username)?.id ?? "new",
+    preferred: choices.find(({label}) => label === username)?.id ?? "new",
     verification: options.authenticatorSelection?.userVerification ?? "preferred",
   }, deadline);
   await requireSite(site.origin);
@@ -145,6 +152,7 @@ async function register(request, options, accounts, deadline) {
     account.passkeys = account.passkeys.filter(({rpId, userHandle}) =>
       rpId !== record.rpId || userHandle !== record.userHandle);
     account.passkeys.push(record);
+    markAccountUsed(data, account);
   });
   return response;
 }
